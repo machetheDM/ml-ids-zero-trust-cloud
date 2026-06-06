@@ -191,7 +191,7 @@ Machethe, D. M. (2026). *Machine learning-based intrusion detection for cloud ne
 MSc Cybersecurity (Cloud Security Architecture) candidate at EC-Council University, Albuquerque, New Mexico. Former Head of Department (Mathematics, Science and Technology) at a public high school in Limpopo, South Africa. Background in Data Science, Machine Learning, and Deep Learning.
 
 - GitHub: [@machetheDM](https://github.com/machetheDM)
-- LinkedIn: [Dingaan Machethe](https://linkedin.com/in/dingaanmachethe)
+- LinkedIn: [Dingaan Mahlatse Machethe](https://linkedin.com/in/dingaan-mahlatse-machethe)
 
 ---
 
