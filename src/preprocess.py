@@ -90,6 +90,28 @@ ATTACK_LABEL_MAP = {
     "ps": 1, "sqlattack": 1, "xterm": 1,
 }
 
+# 5-class multiclass label map — Normal=0, DoS=1, Probe=2, R2L=3, U2R=4
+MC_LABEL_MAP = {
+    "normal": 0,
+    # DoS
+    "back": 1, "land": 1, "neptune": 1, "pod": 1, "smurf": 1,
+    "teardrop": 1, "apache2": 1, "udpstorm": 1, "processtable": 1,
+    "worm": 1, "mailbomb": 1,
+    # Probe
+    "ipsweep": 2, "nmap": 2, "portsweep": 2, "satan": 2,
+    "mscan": 2, "saint": 2,
+    # R2L
+    "ftp_write": 3, "guess_passwd": 3, "imap": 3, "multihop": 3,
+    "phf": 3, "spy": 3, "warezclient": 3, "warezmaster": 3,
+    "sendmail": 3, "named": 3, "snmpgetattack": 3, "snmpguess": 3,
+    "xlock": 3, "xsnoop": 3, "httptunnel": 3,
+    # U2R
+    "buffer_overflow": 4, "loadmodule": 4, "perl": 4, "rootkit": 4,
+    "ps": 4, "sqlattack": 4, "xterm": 4,
+}
+
+MC_CLASS_NAMES = ["Normal", "DoS", "Probe", "R2L", "U2R"]
+
 # Feature selection target — paper §5.2: "reduce to the 25 most informative features"
 N_FEATURES_TO_SELECT = 25
 
@@ -158,6 +180,23 @@ def encode_labels(df: pd.DataFrame) -> pd.DataFrame:
         normal_count, ratio, attack_count, 100 - ratio,
     )
     return df
+
+
+def encode_labels_mc(df: pd.DataFrame) -> np.ndarray:
+    """
+    Return 5-class multiclass labels aligned to df index.
+
+    Classes: 0=Normal, 1=DoS, 2=Probe, 3=R2L, 4=U2R
+    Unrecognised attack types are assigned class 1 (DoS fallback).
+    """
+    raw = df["label"].str.strip().str.lower()
+    mc = raw.map(MC_LABEL_MAP).fillna(1).astype(int).values
+    counts = dict(zip(*np.unique(mc, return_counts=True)))
+    logger.info(
+        "MC label distribution: %s",
+        {MC_CLASS_NAMES[k]: v for k, v in counts.items()},
+    )
+    return mc
 
 
 # ---------------------------------------------------------------------------
@@ -313,13 +352,24 @@ def save_arrays(
     y_train: np.ndarray,
     y_test: np.ndarray,
     output_dir: str = DATA_DIR,
+    y_train_mc: np.ndarray = None,
+    y_test_mc: np.ndarray = None,
 ) -> None:
-    """Save processed NumPy arrays to the data/ folder as .npy files."""
+    """
+    Save processed NumPy arrays to the data/ folder as .npy files.
+
+    Binary labels (y_train / y_test): 0=normal, 1=attack.
+    Multiclass labels (y_train_mc / y_test_mc): 0=Normal, 1=DoS, 2=Probe, 3=R2L, 4=U2R.
+    """
     os.makedirs(output_dir, exist_ok=True)
     np.save(os.path.join(output_dir, "X_train.npy"), X_train)
     np.save(os.path.join(output_dir, "X_test.npy"), X_test)
     np.save(os.path.join(output_dir, "y_train.npy"), y_train)
     np.save(os.path.join(output_dir, "y_test.npy"), y_test)
+    if y_train_mc is not None:
+        np.save(os.path.join(output_dir, "y_train_mc.npy"), y_train_mc)
+        np.save(os.path.join(output_dir, "y_test_mc.npy"), y_test_mc)
+        logger.info("Saved MC label arrays (y_train_mc, y_test_mc) to %s", output_dir)
     logger.info("Saved processed arrays to %s", output_dir)
 
 
@@ -365,13 +415,16 @@ def run_pipeline() -> dict:
     # Step 1: Download
     df = download_nsl_kdd()
 
+    # Extract 5-class MC labels from the raw df BEFORE encoding / OHE
+    y_mc_raw = encode_labels_mc(df)
+
     # Step 2: Encode labels to binary
     df = encode_labels(df)
 
     # Step 3: One-hot encode categorical features
     df = one_hot_encode(df)
 
-    # Separate features and labels
+    # Separate features and binary labels
     y = df["label"].values
     X_df = df.drop(columns=["label"])
     feature_names = list(X_df.columns)
@@ -384,26 +437,37 @@ def run_pipeline() -> dict:
     # full data first to enable RFECV, then re-fit on training split only.
     X_scaled, scaler_full = normalise_features(X, fit=True)
 
-    # Step 5: SMOTE — applied before split to generate balanced training data
+    # Step 5: SMOTE — applied before split to generate balanced training data.
+    # We run SMOTE once on binary labels, then derive MC labels for synthetic
+    # samples by copying the MC class of the nearest real neighbour (binary
+    # SMOTE preserves class identity, so attack=1 synthetic samples inherit the
+    # MC category of the seed sample via a second SMOTE call on MC labels).
     X_resampled, y_resampled = apply_smote(X_scaled, y)
+    _, y_mc_resampled = apply_smote(X_scaled, y_mc_raw)
+    logger.info("Post-SMOTE MC dist: %s",
+                dict(zip(*np.unique(y_mc_resampled, return_counts=True))))
 
     # Step 6: RFECV feature selection — run on SMOTE-balanced full set
     X_selected, selector = select_features_rfecv(X_resampled, y_resampled)
 
     # Step 7: Stratified 80/20 split on SMOTE+RFECV processed data
-    X_train_raw, X_test_raw, y_train, y_test = stratified_split(
-        X_selected, y_resampled
-    )
+    from sklearn.model_selection import StratifiedShuffleSplit as _SSS
+    sss = _SSS(n_splits=1, test_size=TEST_SIZE, random_state=RANDOM_STATE)
+    train_idx, test_idx = next(sss.split(X_selected, y_resampled))
+
+    X_train_raw, X_test_raw = X_selected[train_idx], X_selected[test_idx]
+    y_train,     y_test     = y_resampled[train_idx],    y_resampled[test_idx]
+    y_train_mc,  y_test_mc  = y_mc_resampled[train_idx], y_mc_resampled[test_idx]
 
     # Re-fit scaler on training split only (best practice)
     X_train, scaler = normalise_features(X_train_raw, fit=True)
     X_test, _ = normalise_features(X_test_raw, scaler=scaler, fit=False)
 
-    # Step 8: Save arrays
-    save_arrays(X_train, X_test, y_train, y_test)
+    # Step 8: Save arrays (binary + MC)
+    save_arrays(X_train, X_test, y_train, y_test,
+                y_train_mc=y_train_mc, y_test_mc=y_test_mc)
 
     # Step 9: Save scaler and selector
-    # Build feature names post-OHE for the selector mask
     save_artifacts(scaler, selector, feature_names)
 
     summary = {
@@ -411,9 +475,11 @@ def run_pipeline() -> dict:
         "X_test_shape": X_test.shape,
         "y_train_shape": y_train.shape,
         "y_test_shape": y_test.shape,
+        "y_train_mc_shape": y_train_mc.shape,
         "n_features_selected": int(selector.support_.sum()),
-        "train_class_dist": dict(zip(*np.unique(y_train, return_counts=True))),
-        "test_class_dist": dict(zip(*np.unique(y_test, return_counts=True))),
+        "train_class_dist_binary": dict(zip(*np.unique(y_train, return_counts=True))),
+        "train_class_dist_mc": dict(zip(*np.unique(y_train_mc, return_counts=True))),
+        "test_class_dist_binary": dict(zip(*np.unique(y_test, return_counts=True))),
     }
 
     logger.info("=" * 60)
