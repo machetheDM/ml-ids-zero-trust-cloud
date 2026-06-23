@@ -188,10 +188,32 @@ Machethe, D. M. (2026). *Machine learning-based intrusion detection for cloud ne
 
 **Dingaan Mahlatse Machethe**
 
-MSc Cybersecurity (Cloud Security Architecture) candidate at EC-Council University, Albuquerque, New Mexico. Former Head of Department (Mathematics, Science and Technology) at a public high school in Limpopo, South Africa. Background in Data Science, Machine Learning, and Deep Learning.
+MSc Cybersecurity (Cloud Security Architecture) candidate at EC-Council University. MSc Data Science candidate at University of East London. PGDip Data Science (Regenesys Business School). Former Head of Department (Mathematics, Science and Technology) at a public high school in Limpopo, South Africa.
 
 - GitHub: [@machetheDM](https://github.com/machetheDM)
 - LinkedIn: [Dingaan Mahlatse Machethe](https://linkedin.com/in/dingaan-mahlatse-machethe)
+
+---
+
+## Problem → Technique → Result
+
+### The Problem
+Cloud security incidents cost organisations USD 4.88 million per breach (IBM 2024). Security Operations Centre (SOC) teams are overwhelmed by false-positive alerts from traditional rule-based intrusion detection systems. The Zero Trust Architecture (ZTA) framework (NIST SP 800-207) requires continuous verification, but existing IDS solutions cannot adapt to evolving attack patterns without manual rule updates.
+
+### Techniques Used
+- **Deep Learning (TensorFlow/Keras):** LSTM network (2-layer, 128 units, dropout=0.3, Adam optimiser, early stopping patience=5) for temporal anomaly detection in network traffic sequences
+- **Ensemble ML (scikit-learn + XGBoost):** Random Forest, SVM, and XGBoost classifiers with `GridSearchCV` hyperparameter tuning, compared against LSTM and Autoencoder
+- **Data Preprocessing (pandas + scikit-learn):** One-hot encoding of categorical features (protocol_type, service, flag), `MinMaxScaler` normalisation, SMOTE oversampling for class imbalance, RFECV with RandomForest estimator to select top 25 features from 41 original
+- **Evaluation:** 10-fold stratified cross-validation, metrics computed: Accuracy, Precision (weighted), Recall (weighted), F1-Score (weighted), False Positive Rate, training time, inference latency
+- **Visualisation (matplotlib + seaborn):** 9 publication-quality figures at 300 DPI — model comparison bar charts, ROC curves, confusion matrices, feature importance, ZTA pillar diagrams
+- **Framework Integration:** Each ML model mapped to one or more of the 5 NIST SP 800-207 ZTA pillars (Identity, Devices, Networks, Applications, Data) with a 6-phase implementation roadmap
+
+### The Result
+- **LSTM achieved 98.1% accuracy and 1.8% FPR** — best performer across all 5 models on NSL-KDD (148,517 records, 25 features)
+- **Directly reduces SOC alert fatigue** — 1.8% false positive rate means analysts spend less time chasing false alarms
+- **Reproducible research pipeline** — 5 Jupyter notebooks from EDA to evaluation, all models serialised and reusable
+- **ZTA implementation roadmap** — 6-phase deployment plan from foundation to full operationalisation, with ML models mapped to specific ZTA enforcement layers
+- **Peer-reviewed research paper** accepted for ECCU500, EC-Council University
 
 ---
 
