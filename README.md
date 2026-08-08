@@ -18,6 +18,22 @@
 
 ---
 
+## Detected cloud network intrusions at 98.1% accuracy with a 1.8% false-positive rate — then continued the research beyond its academic scope into the MLOps layer a real deployment needs: experiment tracking, a model registry, containerised inference and drift monitoring.
+
+A continuation of the **Module 9 Research Project** from ECCU500 (Managing Secure Network Systems). The research answered the academic question; this repository answers the engineering one — a model is only useful once something can serve it, version it and tell you when it starts to drift. The false-positive rate is the number that decides whether a SOC team keeps a detector switched on at all.
+
+Five models trained on the NSL-KDD benchmark (148,517 network flow records, 25 features), each mapped to NIST SP 800-207 Zero Trust enforcement pillars:
+
+| Rank | Model | Accuracy | Precision | Recall | F1 | FPR |
+|---|---|---|---|---|---|---|
+| 1 | **LSTM** | **98.1%** | **98.3%** | **97.9%** | **98.1%** | **1.8%** |
+| 2 | XGBoost | 97.3% | 97.5% | 97.1% | 97.3% | 1.9% |
+| 3 | Random Forest | 96.8% | 97.1% | 96.2% | 96.6% | 2.1% |
+
+*The false-positive rate is the number that matters operationally — a 98% accurate detector that floods analysts with false alarms gets switched off. Full evaluation, ROC curves and per-attack-class breakdown in [Results](#results).*
+
+---
+
 ## Overview
 
 ### Why This Project Exists
